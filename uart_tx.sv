@@ -1,11 +1,11 @@
 module uart_tx #(
-    parameter CYCLES_PER_BIT = 217;
+    parameter CYCLES_PER_BIT = 217
 ) (
     input logic clock,
     input logic txDataValid,
-    input logic [7:0] txByteData
+    input logic [7:0] txByteData,
 
-    output logic txActive
+    output logic txActive,
     output logic serialDataStream,
     output logic done
 );
@@ -19,10 +19,9 @@ module uart_tx #(
 
     state_t state;
 
-    logic [7:0] counter;
+    logic [7:0] count;
     logic [7:0] data;
     logic [2:0] bitIndex;
-    logic done;
     logic dataValid;
 
     always @(posedge clock)
@@ -33,49 +32,38 @@ module uart_tx #(
                         dataValid <= 0;
                         count <= 0;
                         bitIndex <= 0;
+                        serialDataStream <= 1;
+                        txActive <= 0;
 
-                        if (serialDataStream === 1'b0)
-                            state <= START_BIT;
-                        else
-                            state <= IDLE;
-                    end
-                START_BIT:
-                    begin
-                        if (count = (CYCLES_PER_BIT - 1) / 2)
+                        if (txDataValid)
                             begin
-                                if (serialDataStream === 1'b0)
-                                    begin
-                                        count <= 0;
-                                        state <= DATA_BIT;
-                                    end
-                                else
-                                    begin
-                                        state <= IDLE;
-                                    end
-                            end
-                        else
-                            begin
-                                count <= count + 1;
+                                data <= txByteData;
+                                txActive <= 1;
                                 state <= START_BIT;
                             end
                     end
+                START_BIT:
+                    begin
+                        serialDataStream <= 0;
+
+                        if (count < CYCLES_PER_BIT - 1)
+                            count <= count + 1;
+                        else
+                            count <= 0;
+                            state <= DATA_BIT;
+                    end
                 DATA_BIT:
                     begin
+                        data[bitIndex] <= serialDataStream;
+
                         if (count < CYCLES_PER_BIT - 1)
-                            begin
-                                count <= count + 1;
-                                state <= DATA_BIT;
-                            end
+                            count <= count + 1;
                         else
                             begin
                                 count <= 0;
-                                data[bitIndex] <= serialDataStream;
 
                                 if (bitIndex < 7)
-                                    begin
-                                        bitIndex <= bitIndex + 1;
-                                        state <= DATA_BIT;
-                                    end
+                                    bitIndex <= bitIndex + 1;
                                 else
                                     begin
                                         bitIndex <= 0;
@@ -86,14 +74,11 @@ module uart_tx #(
                 END_BIT:
                     begin
                         if (count < CYCLES_PER_BIT - 1)
-                            begin
-                                count <= count + 1;
-                                state <= END_BIT;
-                            end
+                            count <= count + 1;
                         else
                             begin
                                 dataValid <= 1;
-                                counter <= 0;
+                                count <= 0;
                                 state <= IDLE;
                             end
                     end
@@ -102,9 +87,5 @@ module uart_tx #(
                     state <= IDLE;
             endcase
         end
-
-
-    assign rxDataValid = dataValid;
-    assign rxByteData = data;
 
 endmodule

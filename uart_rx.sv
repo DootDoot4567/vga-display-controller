@@ -1,7 +1,7 @@
 //CYCLES_PER_BIT = 25 MHZ / 115000 Baud
 
 module uart_rx #(
-    parameter CYCLES_PER_BIT = 217;
+    parameter CYCLES_PER_BIT = 217
 ) (
     input logic clock,
     input logic serialDataStream,
@@ -19,7 +19,7 @@ module uart_rx #(
 
     state_t state;
 
-    logic [7:0] counter;
+    logic [7:0] count;
     logic [7:0] data;
     logic [2:0] bitIndex;
     logic dataValid;
@@ -35,12 +35,10 @@ module uart_rx #(
 
                         if (serialDataStream === 1'b0)
                             state <= START_BIT;
-                        else
-                            state <= IDLE;
                     end
                 START_BIT:
                     begin
-                        if (count = (CYCLES_PER_BIT - 1) / 2)
+                        if (count === (CYCLES_PER_BIT - 1) / 2)
                             begin
                                 if (serialDataStream === 1'b0)
                                     begin
@@ -53,28 +51,19 @@ module uart_rx #(
                                     end
                             end
                         else
-                            begin
-                                count <= count + 1;
-                                state <= START_BIT;
-                            end
+                            count <= count + 1;
                     end
                 DATA_BIT:
                     begin
                         if (count < CYCLES_PER_BIT - 1)
-                            begin
-                                count <= count + 1;
-                                state <= DATA_BIT;
-                            end
+                            count <= count + 1;
                         else
                             begin
                                 count <= 0;
                                 data[bitIndex] <= serialDataStream;
 
                                 if (bitIndex < 7)
-                                    begin
-                                        bitIndex <= bitIndex + 1;
-                                        state <= DATA_BIT;
-                                    end
+                                    bitIndex <= bitIndex + 1;
                                 else
                                     begin
                                         bitIndex <= 0;
@@ -85,14 +74,11 @@ module uart_rx #(
                 END_BIT:
                     begin
                         if (count < CYCLES_PER_BIT - 1)
-                            begin
-                                count <= count + 1;
-                                state <= END_BIT;
-                            end
+                            count <= count + 1;
                         else
                             begin
                                 dataValid <= 1;
-                                counter <= 0;
+                                count <= 0;
                                 state <= IDLE;
                             end
                     end
