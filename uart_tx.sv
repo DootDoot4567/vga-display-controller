@@ -6,7 +6,7 @@ module uart_tx #(
     input logic [7:0] txByteData,
 
     output logic txActive,
-    output logic serialDataStream,
+    output logic txDataStream,
     output logic done
 );
 
@@ -17,7 +17,7 @@ module uart_tx #(
         END_BIT
     } state_t;
 
-    state_t state;
+    state_t state = IDLE;
 
     logic [7:0] count;
     logic [7:0] data;
@@ -31,8 +31,9 @@ module uart_tx #(
                     begin
                         dataValid <= 0;
                         count <= 0;
+                        done <= 0;
                         bitIndex <= 0;
-                        serialDataStream <= 1;
+                        txDataStream <= 1;
                         txActive <= 0;
 
                         if (txDataValid)
@@ -44,17 +45,19 @@ module uart_tx #(
                     end
                 START_BIT:
                     begin
-                        serialDataStream <= 0;
+                        txDataStream <= 0;
 
                         if (count < CYCLES_PER_BIT - 1)
                             count <= count + 1;
                         else
-                            count <= 0;
-                            state <= DATA_BIT;
+                            begin 
+                                count <= 0;
+                                state <= DATA_BIT;
+                            end
                     end
                 DATA_BIT:
                     begin
-                        data[bitIndex] <= serialDataStream;
+                        txDataStream <= data[bitIndex];
 
                         if (count < CYCLES_PER_BIT - 1)
                             count <= count + 1;
@@ -73,12 +76,16 @@ module uart_tx #(
                     end
                 END_BIT:
                     begin
+                        txDataStream <= 1;
+
                         if (count < CYCLES_PER_BIT - 1)
                             count <= count + 1;
                         else
                             begin
                                 dataValid <= 1;
                                 count <= 0;
+                                txActive <= 0;
+                                done <= 1;
                                 state <= IDLE;
                             end
                     end
