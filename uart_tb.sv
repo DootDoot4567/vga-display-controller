@@ -1,102 +1,79 @@
-`timescale 1ns/1ps
+//////////////////////////////////////////////////////////////////////
+// File taken from http://www.nandland.com and Modified by Brandon Rivera
+//////////////////////////////////////////////////////////////////////
 
-module uart_tb;
-    parameter CYCLES_PER_BIT = 217;
-    parameter CLK_PERIOD = 10;
+`timescale 1ns/10ps
 
-    logic clock;
-    logic txDataValid;
-    logic [7:0] txByteData;
-    logic txActive;
-    logic serialDataStream;
-    logic done;
+module uart_tb ();
 
-    logic rxDataValid;
+    // Testbench uses a 25 MHz clock
+    // Want to interface to 115200 baud UART
+    // 25000000 / 115200 = 217 Clocks Per Bit.
+
+    parameter CLOCK_PERIOD_NS = 40;
+    parameter CYCLES_PER_BIT    = 217;
+    parameter BIT_PERIOD      = 8600;
+    
+    logic clock = 0;
+    logic txDataValid = 0;
+    logic txActive, uartLine;
+    logic txDataStream;
+    logic [7:0] txByteData = 0;
     logic [7:0] rxByteData;
+    logic rxDataValid;
+    //logic done;
 
-    uart_tx #(
-        .CYCLES_PER_BIT(CYCLES_PER_BIT)
-    ) tx_inst (
-        .clock(clock),
-        .txDataValid(txDataValid),
-        .txByteData(txByteData),
-        .txActive(txActive),
-        .serialDataStream(serialDataStream),
-        .done(done)
-    );
 
     uart_rx #(
         .CYCLES_PER_BIT(CYCLES_PER_BIT)
-    ) rx_inst (
-        .clock(clock),
-        .serialDataStream(serialDataStream),
-        .rxDataValid(rxDataValid),
-        .rxByteData(rxByteData)
+    ) uart_rx_inst (
+        .clock,
+        .rxDataStream(uartLine),
+        .rxDataValid,
+        .rxByteData
     );
 
-    always #(CLK_PERIOD/2) clock = ~clock;
-
-    initial begin
-        $dumpfile("uart_tb.vcd");
-        $dumpvars(0, uart_tb);
-
-        clock = 0;
-        txDataValid = 0;
-        txByteData = 0;
-
-        repeat (10) @(posedge clock);
-
-        send_byte(8'hA5);
-        send_byte(8'h3C);
-        send_byte(8'hFF);
-        send_byte(8'h00);
-
-        repeat (1000) @(posedge clock);
-        $display("TEST COMPLETE");
-        $finish;
-    end
-
-    task send_byte(input [7:0] data);
-        int timeout;
-
+    uart_tx #(
+        .CYCLES_PER_BIT(CYCLES_PER_BIT)
+    ) uart_tx_inst (
+        .clock,
+        .txDataValid,
+        .txByteData,
+        .txActive,
+        .txDataStream,
+        .done()
+    );
+    
+    // Keeps the UART Receiver input high when
+    // UART transmitter is not active
+    assign uartLine = txActive ? txDataStream : 1'b1;
+        
+    always #(CLOCK_PERIOD_NS/2) clock <= !clock;
+    
+    // Main Testing:
+    initial
         begin
-            $display("Sending byte %h", data);
+        //Send byte through TX
+        @(posedge clock);
+        @(posedge clock);
+        txDataValid   <= 1'b1;
+        txByteData <= 8'h3F;
+        @(posedge clock);
+        txDataValid <= 1'b0;
 
-            @(posedge clock);
-            txByteData <= data;
-            txDataValid <= 1;
-
-            @(posedge clock);
-            txDataValid <= 0;
-
-            // Wait for done with timeout
-            timeout = 0;
-            while (done !== 1) begin
-                @(posedge clock);
-                timeout++;
-                if (timeout > 100000) begin
-                    $display("ERROR: TX done timeout!");
-                    $finish;
-                end
-            end
-
-            // Wait for RX valid with timeout
-            timeout = 0;
-            while (rxDataValid !== 1) begin
-                @(posedge clock);
-                timeout++;
-                if (timeout > 100000) begin
-                    $display("ERROR: RX valid timeout!");
-                    $finish;
-                end
-            end
-
-            if (rxByteData !== data) begin
-                $display("ERROR: Sent %h, Received %h", data, rxByteData);
-            end else begin
-                $display("PASS: Sent %h, Received %h", data, rxByteData);
-            end
+        // Check byte through RX
+        @(posedge rxDataValid);
+        if (rxByteData == 8'h3F)
+            $display("Test Passed - Correct Byte Received");
+        else
+            $display("Test Failed - Incorrect Byte Received");
+        $finish();
         end
-    endtask
-
-endmodule   
+    
+    initial 
+    begin
+        //OPtionally check signals using VaporView on VS Code
+        $dumpfile("dump.vcd");
+        $dumpvars(0);
+    end
+endmodule
